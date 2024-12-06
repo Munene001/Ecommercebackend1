@@ -8,20 +8,14 @@ use Illuminate\Database\Eloquent\Model;
 class Image extends Model
 {
     use HasFactory;
-    protected $primaryKey = 'shop_id';
+    protected $primaryKey = 'image_id';
     public $incrementing = false;
-    protected $Keytype = 'string';
-    protected $fillable = ['shopname', 'shopowner_id'];
-    public function user()
+    protected $keyType = 'string';
+
+    protected $fillable = ['product_id', 'image_url', 'position'];
+
+    public function product()
     {
-        return $this->belongsTo(User::class, 'shopowner_id');
-    }
-    public function categories()
-    {
-        return $this->hasMany(Category::class, 'shop_id');
-    }
-    public function products()
-    {
-        return $this->hasMany(Product::class, 'shop_id');
+        return $this->belongsTo(Product::class, 'product_id');
     }
 }
