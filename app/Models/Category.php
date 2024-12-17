@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class Category extends Model
 {
     use HasFactory;
+    protected $table = 'Categories';
     protected $primaryKey = 'category_id';
     public $incrementing = false;
     protected $keyType = 'string';
@@ -18,6 +19,6 @@ class Category extends Model
     }
     public function products()
     {
-        return $this->hasMany(Product::class, 'category_id');
+        return $this->belongsToMany(Product::class, 'Product_categories', 'product_id', 'category_id');
     }
 }

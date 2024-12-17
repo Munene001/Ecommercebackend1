@@ -5,7 +5,9 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 class Shop extends Model
+
 {
+    protected $table = 'Shops';
     protected $primaryKey = 'shop_id';
     public $incrementing = false;
     protected $keyType = 'string';

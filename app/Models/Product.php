@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class Product extends Model
 {
     use HasFactory;
+    protected $table = 'Products';
     protected $primaryKey = 'product_id';
     public $incrementing = false;
     public $keyType = 'string';
@@ -16,9 +17,9 @@ class Product extends Model
     {
         return $this->belongsTo(Shop::class, 'shop_id');
     }
-    public function category()
+    public function categories()
     {
-        return $this->belongsTo(Category::class, 'category_id');
+        return $this->belongsToMany(Category::class, 'Product_categories', 'product_id', 'category_id');
     }
     public function productvariants()
     {

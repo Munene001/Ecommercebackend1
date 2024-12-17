@@ -9,7 +9,7 @@ class User extends Model
 {
     use HasFactory;
 
-
+    protected $table = 'Users';
 
     protected $primaryKey = 'user_id';
     public $incrementing = false;
