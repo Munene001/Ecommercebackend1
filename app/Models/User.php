@@ -17,9 +17,9 @@ class User extends Model
 
     protected $fillable = ['name', 'email', 'password', 'role'];
 
-    public function product()
+    public function tenant()
     {
-        return $this->belongsTo(Product::class, 'product_id');
+        return $this->belongsTo(Tenant::class, 'tenant_id');
     }
     const ROLE_BUYER = 'buyer';
     const ROLE_SHOP_OWNER = 'shop_owner';

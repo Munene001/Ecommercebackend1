@@ -12,10 +12,10 @@ class ShopController extends Controller
     public function showProducts($ShopUuid)
     {
         try {
-            $shop = Shop::where('shop_id', $ShopUuid)->firstOrFail();
-            $products = $shop->products()->with(['productvariants', 'productdescriptions', 'images'])->get();
+            $shop = Shop::with(['products.productvariants', 'products.productdescriptions', 'products.images'])->where('shop_id', $ShopUuid)->first();
+            $products = $shop->products;
             return response()->json([
-                'shop' => $shop,
+
                 'products' => $products,
             ]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
