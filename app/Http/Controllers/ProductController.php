@@ -15,7 +15,7 @@ class ProductController extends Controller
     public function  showSpecificProduct($ProductUuid)
     {
         try {
-            $product = Product::with(["productdescriptions", "productvariants", "images"])->where('product_id', $ProductUuid)->firstOrFail();
+            $product = Product::with(["productdescriptions", "images"])->where('product_id', $ProductUuid)->firstOrFail();
             return response()->json([
                 'product' => $product,
             ]);
@@ -26,5 +26,23 @@ class ProductController extends Controller
             return response()->json(['error' => 'Something went wrong'], 500);
         }
     }
+    public function search(Request $request)
+    {
+        $query = $request->input('query');
+        $categoryUuid = $request->input('category_id');
+        $products = Product::where(function ($q) use ($query) {
+            $q->where('productname', 'like', '%' . $query . '%')
+                ->orWhere('description', 'like', '%' . $query . '%')
+                ->orWhere('price', 'like', '%' . $query . '%');
+        });
+
+        if ($categoryUuid) {
+            $products->whereHas('categories', function ($q) use ($categoryUuid) {
+                $q->where('category_id', $categoryUuid);
+            });
+        }
+        return response()->json($products->get());
+    }
+
     //
 }

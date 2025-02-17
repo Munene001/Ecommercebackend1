@@ -12,7 +12,7 @@ class ShopController extends Controller
     public function showProducts($ShopUuid)
     {
         try {
-            $shop = Shop::with(['products.productvariants', 'products.productdescriptions', 'products.images'])->where('shop_id', $ShopUuid)->first();
+            $shop = Shop::with(['products.productdescriptions', 'products.images'])->where('shop_id', $ShopUuid)->first();
             $products = $shop->products;
             return response()->json([
 

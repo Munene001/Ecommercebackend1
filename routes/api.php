@@ -25,3 +25,4 @@ Route::get('product/{ProductUuid}', [ProductController::class, 'showSpecificProd
 Route::get('/test', function () {
     return response()->json(['message' => 'API is working!']);
 });
+Route::get('/products/search', [ProductController::class, 'search']);
