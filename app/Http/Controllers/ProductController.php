@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Models\Product;
+use App\Models\Category;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use PhpParser\Node\Stmt\TryCatch;
@@ -29,16 +30,22 @@ class ProductController extends Controller
     public function search(Request $request)
     {
         $query = $request->input('query');
-        $categoryUuid = $request->input('category_id');
-        $products = Product::where(function ($q) use ($query) {
-            $q->where('productname', 'like', '%' . $query . '%')
-                ->orWhere('description', 'like', '%' . $query . '%')
-                ->orWhere('price', 'like', '%' . $query . '%');
-        });
+        $categoryUuid = $request->input('categoryUuid');
+
+        $products = Product::with(["images"]);
+
+
+        if ($query) {
+            $products->where(function ($q) use ($query) {
+                $q->where('productname', 'like', '%' . $query . '%')
+                    ->orWhere('description', 'like', '%' . $query . '%')
+                    ->orWhere('price', 'like', '%' . $query . '%');
+            });
+        }
 
         if ($categoryUuid) {
             $products->whereHas('categories', function ($q) use ($categoryUuid) {
-                $q->where('category_id', $categoryUuid);
+                $q->where('Product_categories.category_id', $categoryUuid);
             });
         }
         return response()->json($products->get());
