@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Models\Product;
 use App\Models\Category;
+use App\Models\Shop;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use PhpParser\Node\Stmt\TryCatch;
@@ -50,6 +51,89 @@ class ProductController extends Controller
         }
         return response()->json($products->get());
     }
+
+    protected function filterByCategories($query, $categoryUuids)
+    {
+
+        if ($categoryUuids && is_array($categoryUuids)) {
+            $query->whereHas('categories', function ($q) use ($categoryUuids) {
+                $q->whereIn('Product_categories.category_id', $categoryUuids);
+            });
+        }
+        return $query;
+    }
+    protected function filterBySizes($query, $sizes)
+    {
+        if ($sizes && is_array($sizes)) {
+            $query->whereHas('productdescriptions', function ($q) use ($sizes) {
+                $q->where(function ($query) use ($sizes) {
+                    foreach ($sizes as $size) {
+                        $query->orWhere('additional_information', 'like', '%' . $size . '%');
+                    }
+                });
+            });
+        }
+        return $query;
+    }
+    protected function filterByColors($query, $colors)
+    {
+        if ($colors && is_array($colors)) {
+            $query->where(function ($q) use ($colors) {
+                foreach ($colors as $color) {
+                    $q->orWhere('productname', 'like', '%' . $color . '%');
+                }
+            });
+        }
+        return $query;
+    }
+    protected function filterByPriceRange($query, $minPrice, $maxPrice)
+    {
+        $query->where(function ($q) use ($minPrice, $maxPrice) {
+            $q->where(function ($query) use ($minPrice, $maxPrice) {
+                $query->whereNotNull('discountprice')
+                    ->whereBetween('discountprice', [$minPrice, $maxPrice]);
+            })->orWhere(function ($query) use ($minPrice, $maxPrice) {
+                $query->whereNull('discountprice')
+                    ->whereBetween('price', [$minPrice, $maxPrice]);
+            });
+        });
+        return $query;
+    }
+    public function filter(Request $request)
+    {
+        $categoryUuids = $request->input('categoryUuids');
+        $sizes = $request->input('sizes');
+        $colors = $request->input('colors');
+        $minPrice = $request->input('minPrice', 0);
+        $maxPrice = $request->input('maxPrice', 20000);
+
+
+        $products = Product::with(['images', 'categories', 'productdescriptions']);
+        $products = $this->filterByCategories($products, $categoryUuids);
+        $products = $this->filterBySizes($products, $sizes);
+        $products = $this->filterByColors($products, $colors);
+        $products = $this->filterByPriceRange($products, $minPrice, $maxPrice);
+
+        $results = $products->paginate(10);
+
+        return response()->json([
+            'products' => $results->items(),
+            'total' => $results->total(),
+        ]);
+    }
+    public function categories(Request $request)
+    {
+        // Make shop_id required or optional with a default
+        $shopId = $request->query('shop_id'); // No default, require from frontend
+        if (!$shopId) {
+            return response()->json(['error' => 'shop_id is required'], 400);
+        }
+        $categories = Category::where('shop_id', $shopId)
+            ->select('category_id', 'categoryname')
+            ->get();
+        return response()->json($categories);
+    }
+
 
     //
 }

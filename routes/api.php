@@ -26,3 +26,5 @@ Route::get('/test', function () {
     return response()->json(['message' => 'API is working!']);
 });
 Route::get('/products/search', [ProductController::class, 'search']);
+Route::post('/products/filter', [ProductController::class, 'filter']);
+Route::get('products/categories', [ProductController::class, 'categories']);
