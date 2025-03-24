@@ -106,7 +106,7 @@ class ProductController extends Controller
         $colors = $request->input('colors');
         $minPrice = $request->input('minPrice', 0);
         $maxPrice = $request->input('maxPrice', 20000);
-
+        $page = $request->input('page', 1); // Get page number, default to 1
 
         $products = Product::with(['images', 'categories', 'productdescriptions']);
         $products = $this->filterByCategories($products, $categoryUuids);
@@ -114,13 +114,16 @@ class ProductController extends Controller
         $products = $this->filterByColors($products, $colors);
         $products = $this->filterByPriceRange($products, $minPrice, $maxPrice);
 
-        $results = $products->paginate(10);
+        $results = $products->paginate(16, ['*'], 'page', $page);
 
         return response()->json([
             'products' => $results->items(),
             'total' => $results->total(),
+            'current_page' => $results->currentPage(),
+            'last_page' => $results->lastPage(),
         ]);
     }
+
     public function categories(Request $request)
     {
         // Make shop_id required or optional with a default
