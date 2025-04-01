@@ -11,7 +11,15 @@ class Tenant extends Model
     protected $table = 'Tenants';
     protected $primaryKey = 'tenant_id';
     public $incrementing = false;
-    protected $Keytype = 'String';
+    protected $keyType = 'String';
 
     protected $fillable = ['tenant_name', 'mobile_number', 'subscription', 'subscription_expiry'];
+    protected $casts = [
+        'subscription_expiry' => 'date',
+    ];
+
+    public function user()
+    {
+        return $this->hasOne(User::class, 'tenant_id', 'tenant_id');
+    }
 }

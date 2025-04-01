@@ -12,7 +12,7 @@ class ProductDescription extends Model
     protected $primaryKey = 'description_id';
     protected $Keytype = 'string';
     public $incrementing = false;
-    public $fillable = ['product_id', 'section_name', 'description'];
+    public $fillable = ['product_id', 'short_description', 'additional_information'];
     public function product()
     {
         return $this->belongsTo(Product::class, 'product_id');
