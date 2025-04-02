@@ -20,17 +20,22 @@ class AuthenticatedSessionController extends Controller
             'email' => ['required', 'string', 'email'],
             'password' => ['required', 'string']
         ]);
+
+        // First ensure CSRF token is valid
+        if (!$request->hasSession() || !$request->session()->token()) {
+            return response()->json(['message' => 'CSRF token mismatch'], 419);
+        }
+
         if (!Auth::attempt($request->only('email', 'password'))) {
             return response()->json(['message' => 'Invalid credentials'], 401);
         }
-        $user = Auth::user();
-        if ($user instanceof User) {
-            $token = $user->createToken('sveltekit-auth')->plainTextToken;
-            return response()->json([
-                'user' => $user,
-                'token' => $token,
-            ]);
-        }
+
+        $request->session()->regenerate();
+
+        return response()->json([
+            'user' => Auth::user(),
+            'message' => 'Logged in successfully',
+        ]);
     }
 
     /**
@@ -38,7 +43,12 @@ class AuthenticatedSessionController extends Controller
      */
     public function destroy(Request $request)
     {
-        $request->user()->currentAccessToken()->delete();
+        Auth::guard('web')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+        if ($request->user()) {
+            $request->user()->currentAccessToken()->delete();
+        }
         return response()->json(['message' => 'Logged out']);
     }
 }
