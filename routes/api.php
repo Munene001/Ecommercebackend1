@@ -39,18 +39,7 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware(['signed', 'throttle:6,1'])
         ->name('verification.verify');
 });
-Route::get('/auth/check', function (Request $request) {
-    if ($request->user()) {
-        return response()->json([
-            'authenticated' => true,
-            'user' => $request->user(),
-        ]);
-    }
-    return response()->json([
-        'authenticated' => false,
-        'user' => null,
-    ]);
-})->name('auth.check');
+
 
 // Other Public Routes
 Route::get('/test', function () {
