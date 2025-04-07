@@ -17,7 +17,7 @@ class ProductController extends Controller
     public function  showSpecificProduct($ProductUuid)
     {
         try {
-            $product = Product::with(["productdescriptions", "images"])->where('product_id', $ProductUuid)->firstOrFail();
+            $product = Product::with(["productdescriptions", "images", 'productsizes'])->where('product_id', $ProductUuid)->firstOrFail();
             return response()->json([
                 'product' => $product,
             ]);
@@ -65,13 +65,23 @@ class ProductController extends Controller
     protected function filterBySizes($query, $sizes)
     {
         if ($sizes && is_array($sizes)) {
-            $query->whereHas('productdescriptions', function ($q) use ($sizes) {
-                $q->where(function ($query) use ($sizes) {
-                    foreach ($sizes as $size) {
-                        $query->orWhere('additional_information', 'like', '%' . $size . '%');
-                    }
+            $query->whereHas('productsizes', function ($q) use ($sizes) {
+                $q->whereIn('size', $sizes);
+            })
+                ->when(in_array('bodywear', $query->pluck('product_type')->toArray()), function ($q) use ($sizes) {
+                    $validBodywearSizes = ['S', 'M', 'L', 'XL'];
+                    $q->whereHas('productsizes', function ($subQ) use ($sizes, $validBodywearSizes) {
+                        $subQ->whereIn('size', array_intersect($sizes, $validBodywearSizes));
+                    });
+                })
+                ->when(in_array('shoes', $query->pluck('product_type')->toArray()), function ($q) use ($sizes) {
+                    $validshoeSizes = array_map(function ($size) {
+                        return "Eu{$size}";
+                    }, range(27, 48));
+                    $q->whereHas('productsizes', function ($subQ) use ($sizes, $validshoeSizes) {
+                        $subQ->whereIn('size', array_intersect($sizes, $validshoeSizes));
+                    });
                 });
-            });
         }
         return $query;
     }
@@ -108,7 +118,7 @@ class ProductController extends Controller
         $maxPrice = $request->input('maxPrice', 20000);
         $page = $request->input('page', 1); // Get page number, default to 1
 
-        $products = Product::with(['images', 'categories', 'productdescriptions']);
+        $products = Product::with(['images', 'categories', 'productdescriptions', 'productsizes']);
         $products = $this->filterByCategories($products, $categoryUuids);
         $products = $this->filterBySizes($products, $sizes);
         $products = $this->filterByColors($products, $colors);

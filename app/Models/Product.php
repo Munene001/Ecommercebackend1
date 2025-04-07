@@ -12,7 +12,7 @@ class Product extends Model
     protected $primaryKey = 'product_id';
     public $incrementing = false;
     public $keyType = 'string';
-    public $fillable = ['shop_id', 'category_id', 'productname', 'description', 'price', 'stock_quantity', 'discountprice', 'status'];
+    public $fillable = ['shop_id', 'category_id', 'productname', 'description', 'price', 'discountprice', 'status', 'product_type'];
     public function shop()
     {
         return $this->belongsTo(Shop::class, 'shop_id');
@@ -32,5 +32,9 @@ class Product extends Model
     public function recentlyviewed()
     {
         return $this->hasMany(RecentlyViewed::class, 'product_id', 'product_id');
+    }
+    public function productsizes()
+    {
+        return $this->hasMany(ProductSizes::class, 'product_id');
     }
 }
