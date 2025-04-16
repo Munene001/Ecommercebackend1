@@ -17,9 +17,12 @@ class ProductController extends Controller
     public function  showSpecificProduct($ProductUuid)
     {
         try {
-            $product = Product::with(["productdescriptions", "images", 'productsizes'])->where('product_id', $ProductUuid)->firstOrFail();
+            $product = Product::with(["productdescriptions", "images", 'productsizes', 'reviews.user', 'reviews.replies.user'])->where('product_id', $ProductUuid)->firstOrFail();
             return response()->json([
                 'product' => $product,
+                'average_rating' => $product->average_rating,
+                'review_count' => $product->review_count,
+
             ]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json(['error' => 'Product is not found'], 404);
@@ -28,6 +31,32 @@ class ProductController extends Controller
             return response()->json(['error' => 'Something went wrong'], 500);
         }
     }
+    public function showMultipleCartProducts(Request $request)
+    {
+        try {
+            $productIds = $request->input('product_ids', []);
+            $products = Product::with(["productdescriptions", "images", "productsizes"])
+                ->whereIn('product_id', $productIds)
+                ->get();
+
+            return response()->json([
+                'products' => $products->map(function ($product) {
+                    return [
+                        'product_id' => $product->product_id,
+                        'productname' => $product->productname,
+                        'price' => $product->price,
+                        'discountprice' => $product->discountprice,
+                        'images' => $product->images,
+                        'productsizes' => $product->productsizes
+                    ];
+                })
+            ]);
+        } catch (Exception $e) {
+            return response()->json(['error' => 'Something went wrong'], 500);
+        }
+    }
+
+
     public function search(Request $request)
     {
         $query = $request->input('query');

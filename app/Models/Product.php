@@ -37,4 +37,16 @@ class Product extends Model
     {
         return $this->hasMany(ProductSizes::class, 'product_id');
     }
+    public function reviews()
+    {
+        return $this->hasMany(Review::class, 'product_id', 'product_id')->whereNull('parent_id');
+    }
+    public function getAverageRatingAttribute()
+    {
+        return $this->reviews()->avg('rating') ?: 0;
+    }
+    public function getReviewCountAttribute()
+    {
+        return $this->reviews()->count();
+    }
 }
