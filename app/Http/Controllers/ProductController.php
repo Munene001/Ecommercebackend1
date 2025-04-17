@@ -19,10 +19,10 @@ class ProductController extends Controller
         try {
             $product = Product::with(["productdescriptions", "images", 'productsizes', 'reviews.user', 'reviews.replies.user'])->where('product_id', $ProductUuid)->firstOrFail();
             return response()->json([
-                'product' => $product,
-                'average_rating' => $product->average_rating,
-                'review_count' => $product->review_count,
-
+                'product' => array_merge($product->toArray(), [
+                    'average_rating' => $product->average_rating,
+                    'review_count' => $product->review_count,
+                ]),
             ]);
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
             return response()->json(['error' => 'Product is not found'], 404);
