@@ -30,6 +30,10 @@ class User extends Authenticatable
     {
         return $this->belongsTo(Tenant::class, 'tenant_id', 'tenant_id');
     }
+    public function wishlist()
+    {
+        return $this->hasMany(Wishlist::class, 'user_id', 'user_id');
+    }
 
     const ROLE_BUYER = 'buyer';
     const ROLE_SHOP_OWNER = 'shopowner';

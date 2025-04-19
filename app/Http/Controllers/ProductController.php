@@ -31,7 +31,7 @@ class ProductController extends Controller
             return response()->json(['error' => 'Something went wrong'], 500);
         }
     }
-    public function showMultipleCartProducts(Request $request)
+    public function showMultipleProducts(Request $request)
     {
         try {
             $productIds = $request->input('product_ids', []);

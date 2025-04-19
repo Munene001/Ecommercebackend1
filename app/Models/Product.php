@@ -41,6 +41,10 @@ class Product extends Model
     {
         return $this->hasMany(Review::class, 'product_id', 'product_id')->whereNull('parent_id');
     }
+    public function wishlistedBy()
+    {
+        return $this->hasMany(Wishlist::class, 'product_id', 'product_id');
+    }
     public function getAverageRatingAttribute()
     {
         return $this->reviews()->avg('rating') ?: 0;

@@ -13,6 +13,7 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Controllers\ReviewController;
+use App\Http\Controllers\WishlistController;
 
 /*
 |--------------------------------------------------------------------------
@@ -29,6 +30,9 @@ Route::post('/reset-password', [NewPasswordController::class, 'store'])->name('p
 
 // Protected Routes
 Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/wishlist', [WishlistController::class, 'index']);
+    Route::post('/wishlist', [WishlistController::class, 'store']);
+    Route::delete('/wishlist/{product_id}', [WishlistController::class, 'destroy']);
     Route::get('/user', function (Request $request) {
         return $request->user();
     });
@@ -56,7 +60,7 @@ Route::post('/products/filter', [ProductController::class, 'filter']);
 Route::get('products/categories', [ProductController::class, 'categories']);
 Route::post('/recentlyviewed/track', [RecentlyViewedController::class, 'track']);
 Route::get('/recentlyviewed/index', [RecentlyViewedController::class, 'index']);
-Route::post('/products/bulk', [ProductController::class, 'showMultipleCartProducts']);
+Route::post('/products/bulk', [ProductController::class, 'showMultipleProducts']);
 
 // Google Auth Routes
 Route::prefix('auth/google')->group(function () {
