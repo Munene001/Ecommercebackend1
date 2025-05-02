@@ -37,7 +37,7 @@ class WishlistController extends Controller
         }
         $user = Auth::user();
         if (!$user) {
-            return response()->json(['error' => 'Only buyers can modify the wishlist'], 403);
+            return response()->json(['error' => 'Only authenticated users can modify the wishlist'], 403);
         }
         try {
             $existing = Wishlist::where('user_id', $user->user_id)

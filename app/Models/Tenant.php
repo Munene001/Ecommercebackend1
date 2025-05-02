@@ -22,4 +22,12 @@ class Tenant extends Model
     {
         return $this->hasOne(User::class, 'tenant_id', 'tenant_id');
     }
+    public function shops()
+    {
+        return $this->hasMany(Shop::class, 'tenant_id', 'tenant_id');
+    }
+    public function sales()
+    {
+        return $this->hasMany(Sale::class, 'tenant_id', 'tenant_id');
+    }
 }
