@@ -11,7 +11,7 @@ class Tenant extends Model
     protected $table = 'Tenants';
     protected $primaryKey = 'tenant_id';
     public $incrementing = false;
-    protected $keyType = 'String';
+    protected $keyType = 'string';
 
     protected $fillable = ['tenant_name', 'mobile_number', 'subscription', 'subscription_expiry'];
     protected $casts = [

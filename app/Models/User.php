@@ -17,7 +17,7 @@ class User extends Authenticatable
     public $incrementing = true;
     protected $keyType = 'int';
 
-    protected $fillable = ['username', 'email', 'password', 'google_id', 'role', 'email_verified_at', 'remember_token', 'tenant_id'];
+    protected $fillable = ['username', 'email', 'password', 'google_id', 'role', 'email_verified_at', 'remember_token', 'tenant_id', 'loaction', 'phone'];
     protected $hidden = ['password', 'remember_token'];
 
     protected $casts = [

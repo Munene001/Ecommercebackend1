@@ -19,9 +19,11 @@ class Sale extends Model
         'shop_id',
         'total_amount',
         'payment_method',
-        'mpese_transaction_id',
+        'mpesa_transaction_id',
         'status',
-        'tenant_id'
+        'tenant_id',
+        'guest_id',
+
 
     ];
     protected $casts = [
@@ -32,7 +34,11 @@ class Sale extends Model
     ];
     public function user()
     {
-        return $this->BelongsTo(User::class, 'user_id');
+        return $this->belongsTo(User::class, 'user_id');
+    }
+    public function guest()
+    {
+        return $this->belongsTo(Guest::class, 'guest_id');
     }
     public function shop()
     {
