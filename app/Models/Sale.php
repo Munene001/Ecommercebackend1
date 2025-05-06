@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use Dreadfulcode\EloquentModelGenerator\Model\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -27,10 +27,11 @@ class Sale extends Model
 
     ];
     protected $casts = [
-        'total_amount' => 'deciaml:2',
+        'total_amount' => 'decimal:2',
         'payment_method' => 'string',
         'status' => 'string',
-        'created_at' => 'datetime'
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime'
     ];
     public function user()
     {

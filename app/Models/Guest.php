@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class Guest extends Model
 {
     use HasFactory;
-    protected $table = 'Guest';
+    protected $table = 'Guests';
     protected $primaryKey = 'guest_id';
     public $incrementing = true;
     protected $keyType = 'int';

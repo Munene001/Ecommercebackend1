@@ -12,6 +12,7 @@ class SaleItem extends Model
     protected $primaryKey = 'saleitem_id';
     public $incrementing = false;
     protected $keyType = 'string';
+    public $timestamps = false;
 
     protected $fillable = [
         'sale_id',

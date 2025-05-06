@@ -12,6 +12,7 @@ use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
+use App\Http\Controllers\CheckoutController;
 use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\WishlistController;
 
@@ -61,6 +62,9 @@ Route::get('products/categories', [ProductController::class, 'categories']);
 Route::post('/recentlyviewed/track', [RecentlyViewedController::class, 'track']);
 Route::get('/recentlyviewed/index', [RecentlyViewedController::class, 'index']);
 Route::post('/products/bulk', [ProductController::class, 'showMultipleProducts']);
+Route::get('/checkout', [CheckoutController::class, 'showCheckoutForm']);
+Route::post('/checkout', [CheckoutController::class, 'processCheckout']);
+Route::post('/mpesa/callback', [CheckoutController::class, 'handleMpesaCallback']);
 
 // Google Auth Routes
 Route::prefix('auth/google')->group(function () {
