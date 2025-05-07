@@ -19,10 +19,6 @@ use Illuminate\Support\Facades\Validator;
 
 class CheckoutController extends Controller
 {
-    /**
-     * Show checkout form (modified for localStorage)
-     * Now doesn't need to retrieve cart from session since it comes from client
-     */
     public function showCheckoutForm(Request $request)
     {
         $user = Auth::user();
@@ -36,17 +32,11 @@ class CheckoutController extends Controller
 
         return response()->json([
             'checkoutData' => $checkoutData,
-            // Removed cart from response since it's client-managed
         ]);
     }
 
-    /**
-     * Process checkout (modified for localStorage)
-     * Now accepts cart data directly in request instead of using session
-     */
-    public function processCheckout(Request $request)
+    protected function validateAndProcessCart(Request $request)
     {
-        // Added validation for cart data
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'phone' => 'required|string|max:20',
@@ -62,37 +52,26 @@ class CheckoutController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            return ['error' => ['errors' => $validator->errors()], 'status' => 422];
         }
 
-        // Get cart directly from request instead of session
         $cart = $request->input('cart');
         if (empty($cart)) {
-            return response()->json(['error' => 'Cart is empty'], 400);
+            return ['error' => ['error' => 'Cart is empty'], 'status' => 400];
         }
 
+        $totalAmount = array_sum(array_map(
+            fn($item) => ($item['discountprice'] ?? $item['price']) * $item['quantity'],
+            $cart
+        ));
+
+        return ['cart' => $cart, 'totalAmount' => $totalAmount];
+    }
+
+    protected function processSale($cart, $totalAmount, $request, $user = null, $guest = null)
+    {
         DB::beginTransaction();
         try {
-            // Calculate total amount from cart items
-            $totalAmount = array_sum(array_map(
-                fn($item) => ($item['discountprice'] ?? $item['price']) * $item['quantity'],
-                $cart
-            ));
-
-            // Handle guest checkout
-            $guest = null;
-            if (!Auth::check()) {
-                $guest = Guest::firstOrCreate(
-                    ['phone' => $request->input('phone')],
-                    [
-                        'name' => $request->input('name'),
-                        'email' => $request->input('email'),
-                        'location' => $request->input('location')
-                    ]
-                );
-            }
-
-            // Create new sale record
             $sale = new Sale();
             $sale->sale_id = Str::uuid()->toString();
             $sale->shop_id = $request->input('shop_id');
@@ -100,20 +79,9 @@ class CheckoutController extends Controller
             $sale->payment_method = 'mpesa';
             $sale->status = 'pending';
             $sale->tenant_id = Shop::find($request->input('shop_id'))->tenant_id;
-            $sale->user_id = Auth::id();
-            $sale->guest_id = $guest ? $guest->guest_id : null;
+            $sale->user_id = $user?->user_id;
+            $sale->guest_id = $guest?->guest_id;
 
-            // Update user details if authenticated
-            if (Auth::check()) {
-                $user = Auth::user();
-                if (!$user->phone || !$user->location) {
-                    $user->phone = $request->input('phone');
-                    $user->location = $request->input('location');
-                    $user->save();
-                }
-            }
-
-            // Process each cart item and reserve stock
             $reservedItems = [];
             foreach ($cart as $item) {
                 $productSize = ProductSizes::where('size_id', $item['size_id'])->lockForUpdate()->first();
@@ -130,7 +98,6 @@ class CheckoutController extends Controller
 
             $sale->save();
 
-            // Create sale items
             foreach ($cart as $item) {
                 $saleItem = new SaleItem();
                 $saleItem->saleitem_id = Str::uuid()->toString();
@@ -142,42 +109,78 @@ class CheckoutController extends Controller
                 $saleItem->save();
             }
 
-            // Schedule stock restoration job in case payment fails
             dispatch(new RestoreStockJob($sale->sale_id, $reservedItems))
-                ->delay(Carbon::now()->addMinutes(5));
+                ->delay(Carbon::now()->addMinutes(1));
 
-            // Initiate M-Pesa payment
             $mpesaResponse = $this->initiateMpesaPayment($sale, $request->input('phone'));
             $sale->mpesa_transaction_id = $mpesaResponse['CheckoutRequestID'] ?? null;
             $sale->save();
 
             DB::commit();
 
-            // Removed session cart clearing since cart is client-managed
             return response()->json([
                 'success' => true,
                 'sale_id' => $sale->sale_id,
-                'message' => 'Order placed successfully'
+                'message' => 'Order placed successfully',
+                'user_updated' => $user ? [
+                    'phone' => $user->phone,
+                    'email' => $user->email,
+                    'location' => $user->location
+                ] : null
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('Checkout failed: ' . $e->getMessage());
-
-            // Restore stock if error occurs
             foreach ($cart as $item) {
                 ProductSizes::where('size_id', $item['size_id'])
                     ->increment('stock_quantity', $item['quantity']);
             }
-
             return response()->json(['error' => 'Checkout failed: ' . $e->getMessage()], 500);
         }
     }
 
-    /**
-     * Initiate M-Pesa payment (unchanged)
-     */
+    public function processUserCheckout(Request $request)
+    {
+        $user = Auth::user();
+        if (!$user) {
+            return response()->json(['error' => 'Unauthenticated'], 401);
+        }
+
+        $cartData = $this->validateAndProcessCart($request);
+        if (isset($cartData['error'])) {
+            return response()->json($cartData['error'], $cartData['status']);
+        }
+
+        $user->phone = $request->input('phone');
+        $user->email = $request->input('email') ?? $user->email;
+        $user->location = $request->input('location');
+        $user->save();
+
+        return $this->processSale($cartData['cart'], $cartData['totalAmount'], $request, $user);
+    }
+
+    public function processGuestCheckout(Request $request)
+    {
+        $cartData = $this->validateAndProcessCart($request);
+        if (isset($cartData['error'])) {
+            return response()->json($cartData['error'], $cartData['status']);
+        }
+
+        $guest = Guest::firstOrCreate(
+            ['phone' => $request->input('phone')],
+            [
+                'name' => $request->input('name'),
+                'email' => $request->input('email'),
+                'location' => $request->input('location')
+            ]
+        );
+
+        return $this->processSale($cartData['cart'], $cartData['totalAmount'], $request, null, $guest);
+    }
+
     protected function initiateMpesaPayment(Sale $sale, string $phone)
     {
+        // Unchanged M-Pesa logic
         $shop = $sale->shop;
         $paymentMethod = $shop->mpesa_payment_method;
         $shortcode = null;
@@ -243,9 +246,6 @@ class CheckoutController extends Controller
         return $response->json();
     }
 
-    /**
-     * Handle M-Pesa callback (unchanged)
-     */
     public function handleMpesaCallback(Request $request)
     {
         $data = $request->input('Body.stkCallback');

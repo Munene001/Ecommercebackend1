@@ -45,6 +45,8 @@ Route::middleware('auth:sanctum')->group(function () {
         ->middleware(['signed', 'throttle:6,1'])
         ->name('verification.verify');
     Route::post('/reviews', [ReviewController::class, 'review'])->middleware('throttle:10,1');
+    Route::post('/checkout', [CheckoutController::class, 'processUserCheckout']);
+    Route::get('/checkout', [CheckoutController::class, 'showCheckoutForm']);
 });
 Route::get('/products/{product_id}/reviews', [ReviewController::class, 'index']);
 
@@ -62,8 +64,9 @@ Route::get('products/categories', [ProductController::class, 'categories']);
 Route::post('/recentlyviewed/track', [RecentlyViewedController::class, 'track']);
 Route::get('/recentlyviewed/index', [RecentlyViewedController::class, 'index']);
 Route::post('/products/bulk', [ProductController::class, 'showMultipleProducts']);
-Route::get('/checkout', [CheckoutController::class, 'showCheckoutForm']);
-Route::post('/checkout', [CheckoutController::class, 'processCheckout']);
+
+
+Route::post('/checkout/guest', [CheckoutController::class, 'processGuestCheckout']);
 Route::post('/mpesa/callback', [CheckoutController::class, 'handleMpesaCallback']);
 
 // Google Auth Routes
