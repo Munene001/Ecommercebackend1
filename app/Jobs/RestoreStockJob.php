@@ -33,7 +33,7 @@ class RestoreStockJob implements ShouldQueue
     public function handle()
     {
         $sale = Sale::find($this->saleId);
-        if ($sale && $sale->status === 'pending' && now()->subMinutes(1)->gt($sale->created_at)) {
+        if ($sale && $sale->status === 'pending' && now()->subMinutes(5)->gt($sale->created_at)) {
             foreach ($this->reservedItems as $item) {
                 ProductSizes::where('size_id', $item['size_id'])
                     ->increment('stock_quantity', $item['quantity']);

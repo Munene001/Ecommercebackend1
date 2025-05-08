@@ -110,7 +110,7 @@ class CheckoutController extends Controller
             }
 
             dispatch(new RestoreStockJob($sale->sale_id, $reservedItems))
-                ->delay(Carbon::now()->addMinutes(1));
+                ->delay(Carbon::now()->addMinutes(5));
 
             $mpesaResponse = $this->initiateMpesaPayment($sale, $request->input('phone'));
             $sale->mpesa_transaction_id = $mpesaResponse['CheckoutRequestID'] ?? null;
@@ -211,7 +211,11 @@ class CheckoutController extends Controller
             : 'https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials';
 
         $authResponse = Http::withBasicAuth($consumerKey, $consumerSecret)->get($authUrl);
+        Log::info('OAuth Request URL: ' . $authUrl);
+        Log::info('OAuth Response: ', $authResponse->json());
+        Log::info('OAuth Status: ' . $authResponse->status());
         if ($authResponse->failed()) {
+            Log::error('OAuth Error: ' . $authResponse->body());
             throw new \Exception('Failed to authenticate with M-Pesa: ' . $authResponse->body());
         }
 
@@ -225,21 +229,25 @@ class CheckoutController extends Controller
         $callbackUrl = config('services.mpesa.callback_url');
 
         $payload = [
-            'BusinessShortCode' => $shortcode,
-            'Password' => $password,
-            'Timestamp' => $timestamp,
-            'TransactionType' => $transactionType,
-            'Amount' => (int) $sale->total_amount,
-            'PartyA' => $phone,
-            'PartyB' => $shortcode,
-            'PhoneNumber' => $phone,
-            'CallBackURL' => $callbackUrl,
-            'AccountReference' => 'Sale#' . $sale->sale_id,
-            'TransactionDesc' => 'Payment for Sale ' . $sale->sale_id,
+            'BusinessShortCode' => $shortcode, // 174379 from Shops
+            'Password' => $password, // Generated correctly
+            'Timestamp' => $timestamp, // Correct
+            'TransactionType' => $transactionType, // CustomerPayBillOnline from Shops (send_money)
+            'Amount' => (int) $sale->total_amount, // Correct (e.g., 1)
+            'PartyA' => $phone, // Test number
+            'PartyB' => $shortcode, // 174379 from Shops
+            'PhoneNumber' => $phone, // Test number
+            'CallBackURL' => $callbackUrl, // https://4b1a-102-210-28-5.ngrok-free.app/mpesa/callback
+            'AccountReference' => 'dukatech', // Matches simulator
+            'TransactionDesc' => 'Sale', // Matches simulator
         ];
 
         $response = Http::withToken($accessToken)->post($stkUrl, $payload);
+        Log::info('STK Push Request: ', ['url' => $stkUrl, 'payload' => $payload]);
+        Log::info('STK Push Response: ', $response->json());
+        Log::info('STK Push Status: ' . $response->status());
         if ($response->failed()) {
+            Log::error('STK Push Error: ' . $response->body());
             throw new \Exception('M-Pesa STK Push failed: ' . $response->body());
         }
 
@@ -248,28 +256,32 @@ class CheckoutController extends Controller
 
     public function handleMpesaCallback(Request $request)
     {
+        Log::info('Callback Received: ', $request->all()); // Logs entire callback payload
         $data = $request->input('Body.stkCallback');
+        if (!$data) {
+            Log::error('Invalid callback data: No stkCallback found'); // Logs if callback data is missing
+            return response()->json(['error' => 'Invalid callback data'], 400);
+        }
+
         $transactionId = $data['CheckoutRequestID'];
         $resultCode = $data['ResultCode'];
         $resultDesc = $data['ResultDesc'];
+        Log::info('Callback Processed: ', ['transactionId' => $transactionId, 'resultCode' => $resultCode, 'resultDesc' => $resultDesc]); // Logs key callback details
 
         $sale = Sale::where('mpesa_transaction_id', $transactionId)->first();
         if (!$sale) {
-            Log::error('Sale not found for M-Pesa transaction: ' . $transactionId);
+            Log::error('Sale not found for M-Pesa transaction: ' . $transactionId); // Logs if sale is not found
             return response()->json(['error' => 'Sale not found'], 404);
         }
 
         if ($resultCode == 0) {
             $sale->status = 'completed';
             $sale->save();
+            Log::info('Sale completed: ', ['sale_id' => $sale->sale_id]); // Logs successful sale completion
         } else {
             $sale->status = 'failed';
             $sale->save();
-            foreach ($sale->saleItems as $item) {
-                ProductSizes::where('size_id', $item->size_id)
-                    ->increment('stock_quantity', $item->quantity);
-            }
-            Log::warning('M-Pesa transaction failed: ' . $resultDesc);
+            Log::warning('M-Pesa transaction failed: ', ['transactionId' => $transactionId, 'resultDesc' => $resultDesc]); // Logs failed transaction details
         }
 
         return response()->json(['success' => true]);
