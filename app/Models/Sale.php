@@ -19,7 +19,6 @@ class Sale extends Model
         'shop_id',
         'total_amount',
         'payment_method',
-        'mpesa_transaction_id',
         'status',
         'tenant_id',
         'guest_id',
@@ -37,6 +36,7 @@ class Sale extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+
     public function guest()
     {
         return $this->belongsTo(Guest::class, 'guest_id');
@@ -52,5 +52,9 @@ class Sale extends Model
     public function tenant()
     {
         return $this->belongsTo(Tenant::class, 'tenant_id');
+    }
+    public function mpesaTransaction()
+    {
+        return $this->hasOne(MpesaTransaction::class, 'sale_id');
     }
 }

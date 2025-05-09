@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Sale;
+use App\Models\MpesaTransaction;
 use App\Models\ProductSizes;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -13,6 +14,7 @@ use Illuminate\Queue\SerializesModels;
 class RestoreStockJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
     protected $saleId;
     protected $reservedItems;
 
@@ -23,8 +25,6 @@ class RestoreStockJob implements ShouldQueue
     {
         $this->saleId = $saleId;
         $this->reservedItems = $reservedItems;
-
-        //
     }
 
     /**
@@ -33,14 +33,15 @@ class RestoreStockJob implements ShouldQueue
     public function handle()
     {
         $sale = Sale::find($this->saleId);
-        if ($sale && $sale->status === 'pending' && now()->subMinutes(5)->gt($sale->created_at)) {
+        $mpesaTransaction = MpesaTransaction::where('sale_id', $this->saleId)->first();
+
+        if ($sale && $mpesaTransaction && $mpesaTransaction->status === 'pending' && now()->subMinutes(1)->gt($sale->created_at)) {
             foreach ($this->reservedItems as $item) {
                 ProductSizes::where('size_id', $item['size_id'])
                     ->increment('stock_quantity', $item['quantity']);
             }
-            $sale->saleItems()->delete();
-            $sale->delete();
+            $mpesaTransaction->result_desc = 'Transaction timed out';
+            $mpesaTransaction->save();
         }
-        //
     }
 }

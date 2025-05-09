@@ -7,6 +7,7 @@ use App\Models\Guest;
 use App\Models\ProductSizes;
 use App\Models\Sale;
 use App\Models\SaleItem;
+use App\Models\MpesaTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -110,11 +111,9 @@ class CheckoutController extends Controller
             }
 
             dispatch(new RestoreStockJob($sale->sale_id, $reservedItems))
-                ->delay(Carbon::now()->addMinutes(5));
+                ->delay(Carbon::now()->addMinutes(1));
 
             $mpesaResponse = $this->initiateMpesaPayment($sale, $request->input('phone'));
-            $sale->mpesa_transaction_id = $mpesaResponse['CheckoutRequestID'] ?? null;
-            $sale->save();
 
             DB::commit();
 
@@ -180,7 +179,6 @@ class CheckoutController extends Controller
 
     protected function initiateMpesaPayment(Sale $sale, string $phone)
     {
-        // Unchanged M-Pesa logic
         $shop = $sale->shop;
         $paymentMethod = $shop->mpesa_payment_method;
         $shortcode = null;
@@ -228,60 +226,97 @@ class CheckoutController extends Controller
         $password = base64_encode($shortcode . $shop->mpesa_passkey . $timestamp);
         $callbackUrl = config('services.mpesa.callback_url');
 
+        $mpesaTransaction = new MpesaTransaction([
+            'transaction_id' => Str::uuid()->toString(),
+            'sale_id' => $sale->sale_id,
+            'amount' => $sale->total_amount,
+            'phone' => $phone,
+            'shop_id' => $shop->shop_id,
+            'status' => 'pending',
+        ]);
+        $mpesaTransaction->save(); // Save transaction before STK Push
+
         $payload = [
-            'BusinessShortCode' => $shortcode, // 174379 from Shops
-            'Password' => $password, // Generated correctly
-            'Timestamp' => $timestamp, // Correct
-            'TransactionType' => $transactionType, // CustomerPayBillOnline from Shops (send_money)
-            'Amount' => (int) $sale->total_amount, // Correct (e.g., 1)
-            'PartyA' => $phone, // Test number
-            'PartyB' => $shortcode, // 174379 from Shops
-            'PhoneNumber' => $phone, // Test number
-            'CallBackURL' => $callbackUrl, // https://4b1a-102-210-28-5.ngrok-free.app/mpesa/callback
-            'AccountReference' => 'dukatech', // Matches simulator
-            'TransactionDesc' => 'Sale', // Matches simulator
+            'BusinessShortCode' => $shortcode,
+            'Password' => $password,
+            'Timestamp' => $timestamp,
+            'TransactionType' => $transactionType,
+            'Amount' => (int) $sale->total_amount,
+            'PartyA' => $phone,
+            'PartyB' => $shortcode,
+            'PhoneNumber' => $phone,
+            'CallBackURL' => $callbackUrl,
+            'AccountReference' => 'dukatech',
+            'TransactionDesc' => 'Sale',
         ];
 
         $response = Http::withToken($accessToken)->post($stkUrl, $payload);
         Log::info('STK Push Request: ', ['url' => $stkUrl, 'payload' => $payload]);
         Log::info('STK Push Response: ', $response->json());
         Log::info('STK Push Status: ' . $response->status());
+
         if ($response->failed()) {
             Log::error('STK Push Error: ' . $response->body());
+            $mpesaTransaction->status = 'failed';
+            $mpesaTransaction->result_desc = $response->body();
+            $mpesaTransaction->save();
             throw new \Exception('M-Pesa STK Push failed: ' . $response->body());
         }
+
+        $mpesaTransaction->mpesa_checkout_request_id = $response->json()['CheckoutRequestID'] ?? null;
+        $mpesaTransaction->save();
 
         return $response->json();
     }
 
     public function handleMpesaCallback(Request $request)
     {
-        Log::info('Callback Received: ', $request->all()); // Logs entire callback payload
+        Log::info('Callback Received: ', $request->all());
         $data = $request->input('Body.stkCallback');
-        if (!$data) {
-            Log::error('Invalid callback data: No stkCallback found'); // Logs if callback data is missing
+        if (!$data || !isset($data['CheckoutRequestID'], $data['ResultCode'], $data['ResultDesc'])) {
+            Log::error('Invalid callback data: No stkCallback found');
             return response()->json(['error' => 'Invalid callback data'], 400);
         }
 
         $transactionId = $data['CheckoutRequestID'];
+        Log::info('Searching for transaction:', ['CheckoutRequestID' => $transactionId]);
         $resultCode = $data['ResultCode'];
         $resultDesc = $data['ResultDesc'];
-        Log::info('Callback Processed: ', ['transactionId' => $transactionId, 'resultCode' => $resultCode, 'resultDesc' => $resultDesc]); // Logs key callback details
 
-        $sale = Sale::where('mpesa_transaction_id', $transactionId)->first();
-        if (!$sale) {
-            Log::error('Sale not found for M-Pesa transaction: ' . $transactionId); // Logs if sale is not found
-            return response()->json(['error' => 'Sale not found'], 404);
+        // Retry logic to handle race condition
+        $attempts = 3;
+        $delay = 1; // seconds
+        $mpesaTransaction = null;
+
+        while ($attempts > 0) {
+            $mpesaTransaction = MpesaTransaction::where('mpesa_checkout_request_id', $transactionId)->first();
+            if ($mpesaTransaction) {
+                break;
+            }
+            Log::info('Transaction not found, retrying...', ['attempts_left' => $attempts, 'CheckoutRequestID' => $transactionId]);
+            sleep($delay);
+            $attempts--;
         }
 
-        if ($resultCode == 0) {
-            $sale->status = 'completed';
+        if (!$mpesaTransaction) {
+            Log::error('M-Pesa transaction not found after retries', [
+                'CheckoutRequestID' => $transactionId,
+                'all_transactions' => MpesaTransaction::pluck('mpesa_checkout_request_id')->toArray()
+            ]);
+            return response()->json(['error' => 'M-Pesa transaction not found'], 404);
+        }
+
+        $mpesaTransaction->status = $resultCode == 0 ? 'completed' : 'failed';
+        $mpesaTransaction->result_desc = $resultDesc;
+        $mpesaTransaction->save();
+
+        $sale = $mpesaTransaction->sale;
+        if ($sale) {
+            $sale->status = $resultCode == 0 ? 'completed' : 'failed';
             $sale->save();
-            Log::info('Sale completed: ', ['sale_id' => $sale->sale_id]); // Logs successful sale completion
+            Log::info('Sale updated: ', ['sale_id' => $sale->sale_id, 'status' => $sale->status]);
         } else {
-            $sale->status = 'failed';
-            $sale->save();
-            Log::warning('M-Pesa transaction failed: ', ['transactionId' => $transactionId, 'resultDesc' => $resultDesc]); // Logs failed transaction details
+            Log::warning('Sale not found for M-Pesa transaction: ', ['transaction_id' => $transactionId, 'sale_id' => $mpesaTransaction->sale_id]);
         }
 
         return response()->json(['success' => true]);
